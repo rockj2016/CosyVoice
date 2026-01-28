@@ -178,6 +178,7 @@ def process_chapter(book_id: str, chapter_data: dict, version_id: str) -> bool:
     
     print(f"\n{'='*60}")
     print(f"Processing chapter: {chapter_title} (ID: {chapter_id})")
+    print(f"length: {len(content)}")
     print(f"{'='*60}")
     
     # Create audio directory
