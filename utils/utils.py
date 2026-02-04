@@ -1,6 +1,6 @@
 import re
 
-def split_into_sentences(text: str, max_length: int = 100) -> list[str]:
+def split_into_sentences(text: str, max_length: int = 50) -> list[str]:
     """
     将文本按标点符号分割成句子列表
     支持：。，！？、；：及对应的英文标点
