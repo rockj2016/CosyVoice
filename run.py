@@ -256,7 +256,7 @@ def process_chapter(book_id: str, chapter_data: dict, version_id: str) -> bool:
         sentence = text_item["text"]
         audio_path = f"{audio_dir}/{i}.wav"
         
-        print(f"Generating audio for sentence {i}/{len(text_index)}: {sentence[:50]}...")
+        print(f"Generating audio for sentence {i}/{len(text_index)}: {len(sentence)} {sentence}...")
         
         success = cosyvoice_tts(sentence, audio_path)
         
