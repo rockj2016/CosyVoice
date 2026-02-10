@@ -215,6 +215,8 @@ def process_chapter(book_id: str, chapter_data: dict, version_id: str) -> bool:
                     print(f"Sub-chapter '{sub_chapter_title}': {len(sub_sentences)} sentences")
                     
                     for sentence in sub_sentences:
+                        sentence = sentence.strip()
+                        sentence = sentence.replace("\n", "").replace(" ", "")
                         text_index[str(sentence_index)] = {
                             "text": sentence,
                             "sub_chapter_id": sub_chapter_id,
