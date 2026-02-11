@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 from typing import Optional
 import uuid
 from dotenv import load_dotenv
-from utils.utils import smartread_text_normalize
+from utils.normalize import smartread_text_normalize
 
 # Add third_party path
 sys.path.append('third_party/Matcha-TTS')
