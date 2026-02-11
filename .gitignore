@@ -53,3 +53,5 @@ pretrained_models/*
 
 .env
 外部服务api.py
+venv
+verify_api.py

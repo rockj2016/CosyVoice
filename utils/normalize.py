@@ -1,7 +1,7 @@
 from cosyvoice.utils.frontend_utils import contains_chinese
 import re
 
-def _normalize_year(self, text):
+def _normalize_year(text):
         """Normalize year formats in text.
 
         Converts years like 2025, 1999年, 2024/01/01, 2024-01-01 to Chinese characters.
@@ -42,7 +42,7 @@ def smartread_text_normalize(text):
             text = text.replace("著", "[zh][ù]")
 
         # Normalize years before other text normalization
-        text = self._normalize_year(text)
+        text = _normalize_year(text)
         text = text.replace("≠", "不等于")
         text = text.replace("≤", "小于等于")
         text = text.replace("≥", "大于等于")
@@ -50,14 +50,14 @@ def smartread_text_normalize(text):
         text = text.replace("<", "小于")
         text = text.replace(">", "大于")
 
-        text = self.zh_tn_model.normalize(text)
-        text = text.replace("\n", "")
-        text = replace_blank(text)
-        text = replace_corner_mark(text)
-        text = text.replace(".", "。")
-        text = text.replace(" - ", "，")
-        text = remove_bracket(text)
-        text = re.sub(r'[，,、]+$', '。', text)
+        # text = zh_tn_model.normalize(text)
+        # text = text.replace("\n", "")
+        # text = replace_blank(text)
+        # text = replace_corner_mark(text)
+        # text = text.replace(".", "。")
+        # text = text.replace(" - ", "，")
+        # text = remove_bracket(text)
+        # text = re.sub(r'[，,、]+$', '。', text)
 
     return text
 

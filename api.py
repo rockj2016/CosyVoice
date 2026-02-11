@@ -85,36 +85,32 @@ async def startup_event():
 
 @app.post("/tts")
 async def generate_tts(request: TTSRequest, api_key: str = Depends(verify_api_key)):
-    try:
-        cosyvoice, spk_name = init_cosyvoice()
-        
-        # Create a unique filename for the output
-        output_filename = f"tts_output_{uuid.uuid4()}.wav"
-        output_path = os.path.join("/tmp", output_filename)
-        
-        # Generate speech using pre-loaded speaker info
-        # Using the same logic as run.py
-        generated = False
-        text = smartread_text_normalize(request.text)
-        for i, result in enumerate(cosyvoice.inference_zero_shot(
-            text,
-            'You are a helpful assistant.<|endofprompt|>',
-            '',  # Empty prompt_wav since we use cached spk_info
-            zero_shot_spk_id=spk_name,
-            stream=False
-        )):
-            torchaudio.save(output_path, result['tts_speech'], cosyvoice.sample_rate)
-            generated = True
-            break  # Only need first result
-            
-        if not generated:
-             raise HTTPException(status_code=500, detail="Failed to generate audio")
 
-        return FileResponse(output_path, media_type="audio/wav", filename=output_filename)
+    cosyvoice, spk_name = init_cosyvoice()
+    
+    # Create a unique filename for the output
+    output_filename = f"tts_output_{uuid.uuid4()}.wav"
+    output_path = os.path.join("/tmp", output_filename)
+    
+    # Generate speech using pre-loaded speaker info
+    # Using the same logic as run.py
+    generated = False
+    text = smartread_text_normalize(request.text)
+    for i, result in enumerate(cosyvoice.inference_zero_shot(
+        text,
+        'You are a helpful assistant.<|endofprompt|>',
+        '',  # Empty prompt_wav since we use cached spk_info
+        zero_shot_spk_id=spk_name,
+        stream=False
+    )):
+        torchaudio.save(output_path, result['tts_speech'], cosyvoice.sample_rate)
+        generated = True
+        break  # Only need first result
+        
+    if not generated:
+        raise HTTPException(status_code=500, detail="Failed to generate audio")
 
-    except Exception as e:
-        print(f"TTS Error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    return FileResponse(output_path, media_type="audio/wav", filename=output_filename)
 
 if __name__ == '__main__':
     uvicorn.run(app, host=HOST, port=PORT)
