@@ -29,7 +29,7 @@ AUTODL_API_KEY = os.getenv('AUTODL_API_KEY', 'autodl-tts-secret-key-2024')
 SPK_INFO_PATH = os.getenv('SPK_INFO_PATH', './spkinfo.pt')
 MODEL_DIR = os.getenv('MODEL_DIR', 'pretrained_models/Fun-CosyVoice3-0.5B')
 HOST = os.getenv('API_HOST', '0.0.0.0')
-PORT = int(os.getenv('API_PORT', 8000))
+PORT = int(os.getenv('API_PORT', 6006))
 
 # CosyVoice imports
 from vllm import ModelRegistry
