@@ -30,7 +30,7 @@ SPK_INFO_PATH = os.getenv('SPK_INFO_PATH', './spkinfo.pt')
 MODEL_DIR = os.getenv('MODEL_DIR', 'pretrained_models/Fun-CosyVoice3-0.5B')
 
 # Import utilities
-from utils.utils import split_into_sentences
+from utils.utils import split_into_sentences, split_into_sentences_en
 from utils.audio import merge_audio_and_generate_subtitles
 from utils.s3 import S3
 
@@ -160,7 +160,7 @@ def submit_chapter_audio(chapter_id: str, s3_key: str, audio_duration: int, capt
     return result.get('success', False)
 
 
-def process_chapter(book_id: str, chapter_data: dict, version_id: str) -> bool:
+def process_chapter(book_id: str, chapter_data: dict, version_id: str, lang: str = 'zh') -> bool:
     """
     Process a single chapter: split text, generate TTS, merge audio, upload
     
@@ -211,12 +211,14 @@ def process_chapter(book_id: str, chapter_data: dict, version_id: str) -> bool:
                     sentence_index += 1
                     
                     # Split summary into sentences
-                    sub_sentences = split_into_sentences(sub_summary)
+                    split_fn = split_into_sentences_en if lang == 'en' else split_into_sentences
+                    sub_sentences = split_fn(sub_summary)
                     print(f"Sub-chapter '{sub_chapter_title}': {len(sub_sentences)} sentences")
                     
                     for sentence in sub_sentences:
                         sentence = sentence.strip()
-                        sentence = sentence.replace("\n", "").replace(" ", "")
+                        if lang == 'zh':
+                            sentence = sentence.replace("\n", "").replace(" ", "")
                         text_index[str(sentence_index)] = {
                             "text": sentence,
                             "sub_chapter_id": sub_chapter_id,
@@ -231,7 +233,8 @@ def process_chapter(book_id: str, chapter_data: dict, version_id: str) -> bool:
     except (json.JSONDecodeError, ValueError, TypeError):
         # No sub-chapters, use content as summary
         if content:
-            sentences = split_into_sentences(content)
+            split_fn = split_into_sentences_en if lang == 'en' else split_into_sentences
+            sentences = split_fn(content)
             print(f"Split chapter content into {len(sentences)} sentences")
             
             for i, sentence in enumerate(sentences, 1):
@@ -340,7 +343,7 @@ def main():
         
         for chapter in version.get('version_chapters', []):
             try:
-                process_chapter(book_id, chapter, version_id)
+                process_chapter(book_id, chapter, version_id, lang=args.lang)
             except Exception as e:
                 print(f"Error processing chapter {chapter.get('chapter_id')}: {e}")
                 continue

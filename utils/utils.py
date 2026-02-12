@@ -1,8 +1,9 @@
 import re
 
+
 def split_into_sentences(text: str, max_length: int = 50) -> list[str]:
     """
-    将文本按标点符号分割成句子列表
+    将中文文本按标点符号分割成句子列表
     支持：。，！？、；：及对应的英文标点
     
     Args:
@@ -46,5 +47,63 @@ def split_into_sentences(text: str, max_length: int = 50) -> list[str]:
         # 判断buffer中有中文或英文且长度足够
         if re.search(r'[\u4e00-\u9fff]', buffer) or len(buffer) > 10:
             sentences.append(buffer)
+    
+    return sentences
+
+
+def split_into_sentences_en(text: str, max_words: int = 60) -> list[str]:
+    """
+    Split English text into sentence chunks for TTS.
+    
+    Splits on sentence-ending punctuation (. ! ?), then merges short sentences
+    together up to max_words to avoid overly short TTS segments.
+    
+    Args:
+        text: English text to split
+        max_words: Maximum word count per chunk (default 60)
+    """
+    def _word_count(s: str) -> int:
+        return len(s.split())
+
+    # Normalize whitespace
+    text = re.sub(r'\s+', ' ', text).strip()
+    
+    # Split on sentence boundaries, keeping the delimiter attached
+    raw_sentences = re.split(r'(?<=[.!?])\s+', text)
+    
+    sentences = []
+    buffer = ''
+    
+    for sent in raw_sentences:
+        sent = sent.strip()
+        if not sent:
+            continue
+        
+        # If adding this sentence exceeds max_words, flush buffer first
+        combined = f"{buffer} {sent}" if buffer else sent
+        if buffer and _word_count(combined) > max_words:
+            sentences.append(buffer.strip())
+            buffer = sent
+        else:
+            buffer = combined
+        
+        # Force-split if buffer itself is too long
+        while _word_count(buffer) > max_words:
+            words = buffer.split()
+            # Take max_words words, then try to find a sentence/clause boundary nearby
+            cut_text = ' '.join(words[:max_words])
+            split_pos = len(cut_text)
+            for punct in ['. ', '! ', '? ', '; ', ', ']:
+                pos = buffer.rfind(punct, 0, split_pos)
+                if pos > split_pos // 3:
+                    split_pos = pos + len(punct)
+                    break
+            
+            sentences.append(buffer[:split_pos].strip())
+            buffer = buffer[split_pos:].strip()
+    
+    # Flush remaining buffer
+    if buffer and _word_count(buffer.strip()) > 2:
+        sentences.append(buffer.strip())
     
     return sentences
