@@ -167,7 +167,13 @@ python spk_example.py --wav_path ./asset/nlcj.wav \
                     --output_path ./spkinfo.pt \
                     --model_dir pretrained_models/Fun-CosyVoice3-0.5B
 """
-
+"""
+python genrate_spk.py --wav_path ./asset/en_voice.wav \
+                    --prompt_text "When I read these sections, I kept catching myself thinking." \
+                    --spk_name "nlcj" \
+                    --output_path ./spkinfo_en.pt \
+                    --model_dir pretrained_models/Fun-CosyVoice3-0.5B
+"""
 
 if __name__ == "__main__":
 
