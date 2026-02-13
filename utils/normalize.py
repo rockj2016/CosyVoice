@@ -37,6 +37,9 @@ def _normalize_year(text):
 
 def smartread_text_normalize(text):
     text = text.lower()
+
+    text = text.replace("”", "'")
+    text = text.replace("“", "'")
     if contains_chinese(text):
         
         if "显著" not in text:
