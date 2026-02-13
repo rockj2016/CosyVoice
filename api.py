@@ -3,10 +3,11 @@
 """
 TTS API Service
 
-Usage: python api.py
+Usage: python api.py --spk=xxxx.pt
 """
 import os
 import sys
+import argparse
 import uvicorn
 import torch
 import torchaudio
@@ -24,12 +25,19 @@ sys.path.append('third_party/Matcha-TTS')
 # Load environment variables
 load_dotenv()
 
-# Configuration from .env
+# Parse command-line arguments
+parser = argparse.ArgumentParser(description='CosyVoice TTS API Service')
+parser.add_argument('--spk', type=str, required=True, help='Path to speaker .pt file (e.g., xxxx.pt)')
+parser.add_argument('--host', type=str, default=None, help='API host (overrides API_HOST env var)')
+parser.add_argument('--port', type=int, default=None, help='API port (overrides API_PORT env var)')
+args = parser.parse_args()
+
+# Configuration from .env + CLI args
 AUTODL_API_KEY = os.getenv('AUTODL_API_KEY', 'autodl-tts-secret-key-2024')
-SPK_INFO_PATH = os.getenv('SPK_INFO_PATH', './spkinfo.pt')
+SPK_INFO_PATH = args.spk
 MODEL_DIR = os.getenv('MODEL_DIR', 'pretrained_models/Fun-CosyVoice3-0.5B')
-HOST = os.getenv('API_HOST', '0.0.0.0')
-PORT = int(os.getenv('API_PORT', 6006))
+HOST = args.host or os.getenv('API_HOST', '0.0.0.0')
+PORT = args.port or int(os.getenv('API_PORT', 6006))
 
 # CosyVoice imports
 from vllm import ModelRegistry
