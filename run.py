@@ -3,7 +3,7 @@
 """
 TTS Book Processing Script
 
-Usage: python run.py --book_id <book_id> [--lang zh|en]
+Usage: python run.py --book_id <book_id> --spk <spk_file.pt> [--lang zh|en]
 
 从外部服务获取书本信息，生成 TTS 音频和字幕，并将结果上传回外部服务。
 """
@@ -308,17 +308,15 @@ def main():
     
     parser = argparse.ArgumentParser(description='TTS Book Processing Script')
     parser.add_argument('--book_id', type=str, required=True, help='Book ID to process')
-    parser.add_argument('--lang', type=str, default='zh', choices=['zh', 'en'], help='Language: zh (default) or en')
+    parser.add_argument('--spk', type=str, required=True, help='Path to speaker info .pt file')
+    parser.add_argument('--lang', type=str, default='zh', choices=['zh', 'en'], help='Language for text splitting: zh (default) or en')
     args = parser.parse_args()
     
     book_id = args.book_id
     
-    # Set speaker info path based on language
-    if args.lang == 'en':
-        SPK_INFO_PATH = './spkinfo_en.pt'
-    else:
-        SPK_INFO_PATH = './spkinfo.pt'
-    print(f"Language: {args.lang}, Speaker info: {SPK_INFO_PATH}")
+    # Set speaker info path from --spk argument
+    SPK_INFO_PATH = args.spk
+    print(f"Speaker info: {SPK_INFO_PATH}, Language: {args.lang}")
     print(f"Starting TTS processing for book: {book_id}")
     
     # Fetch book content
