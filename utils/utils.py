@@ -11,7 +11,7 @@ def split_into_sentences(text: str, max_length: int = 50) -> list[str]:
         max_length: 单个句子的最大长度，超过会强制分割
     """
     # 按多种标点分割，包括逗号、句号、感叹号、问号、顿号、分号、冒号、换行符
-    parts = re.split(r'(?<=[。！？!?，,、；;：:\n])', text)
+    parts = re.split(r'(?<=[。！？!?，,；;：:])', text)
     
     sentences = []
     buffer = ''

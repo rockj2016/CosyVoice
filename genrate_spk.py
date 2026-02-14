@@ -175,6 +175,13 @@ python genrate_spk.py --wav_path ./asset/en_voice.wav \
                     --model_dir pretrained_models/Fun-CosyVoice3-0.5B
 """
 
+
+python genrate_spk.py --wav_path ./asset/cn_3.wav \
+                    --prompt_text "这是一款为高效学习设计的智能听书软件。" \
+                    --spk_name "nlcj" \
+                    --output_path ./spkinfo_cn_1.pt \
+                    --model_dir pretrained_models/Fun-CosyVoice3-0.5B
+
 if __name__ == "__main__":
 
     main()

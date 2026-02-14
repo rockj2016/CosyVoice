@@ -112,6 +112,9 @@ async def generate_tts(request: TTSRequest, api_key: str = Depends(verify_api_ke
         stream=False
     )):
         torchaudio.save(output_path, result['tts_speech'], cosyvoice.sample_rate)
+        # 清除首尾噪声
+        from utils.audio import clean_wav_noise
+        clean_wav_noise(os.path.abspath(output_path))
         generated = True
         break  # Only need first result
         
