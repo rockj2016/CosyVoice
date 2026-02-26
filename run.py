@@ -300,6 +300,20 @@ def process_chapter(book_id: str, chapter_data: dict, version_id: str, lang: str
         caption_data=caption_data
     )
     
+    if success:
+        print(f"Cleaning up audio files for chapter {chapter_id}...")
+        try:
+            import glob
+            # 删除合成前的音频片段
+            for wav_path in glob.glob(f"{audio_dir}/*.wav"):
+                os.remove(wav_path)
+            # 删除合成后的音频
+            if os.path.exists(merged_audio_path):
+                os.remove(merged_audio_path)
+            print("Cleanup completed.")
+        except Exception as e:
+            print(f"Failed to clean up audio files: {e}")
+            
     return success
 
 

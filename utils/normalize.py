@@ -38,8 +38,8 @@ def _normalize_year(text):
 def smartread_text_normalize(text):
     text = text.lower()
 
-    text = text.replace("”", "'")
-    text = text.replace("“", "'")
+    text = text.replace("”", "")
+    text = text.replace("“", "")
     if contains_chinese(text):
         
         if "显著" not in text:
@@ -55,7 +55,7 @@ def smartread_text_normalize(text):
         text = text.replace(">", "大于")
 
         # text = zh_tn_model.normalize(text)
-        # text = text.replace("\n", "")
+        text = text.replace("\n", "")
         # text = replace_blank(text)
         # text = replace_corner_mark(text)
         # text = text.replace(".", "。")
