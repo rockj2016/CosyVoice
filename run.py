@@ -33,6 +33,7 @@ MODEL_DIR = os.getenv('MODEL_DIR', 'pretrained_models/Fun-CosyVoice3-0.5B')
 # Import utilities
 from utils.utils import split_into_sentences, split_into_sentences_en
 from utils.audio import merge_audio_and_generate_subtitles
+from utils.normalize import smartread_text_normalize
 from utils.s3 import S3
 
 # CosyVoice imports
@@ -89,7 +90,8 @@ def cosyvoice_tts(text: str, output_path: str) -> bool:
     """
     try:
         cosyvoice, spk_name = init_cosyvoice()
-        
+        text = smartread_text_normalize(text)
+
         # Generate speech using pre-loaded speaker info
         for i, result in enumerate(cosyvoice.inference_zero_shot(
             text,

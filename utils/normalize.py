@@ -42,8 +42,27 @@ def smartread_text_normalize(text):
     text = text.replace("“", "")
     if contains_chinese(text):
         
-        if "显著" not in text:
-            text = text.replace("著", "[zh][ù]")
+        # 多音字: 著 -> zhù
+        text = text.replace("臭名昭著", "臭名昭[zh][ù]")
+        text = text.replace("显著", "显[zh][ù]")
+        text = text.replace("卓著", "卓[zh][ù]")
+        text = text.replace("昭著", "昭[zh][ù]")
+        text = text.replace("土著", "土[zh][ù]")
+        text = text.replace("原著", "原[zh][ù]")
+        text = text.replace("编著", "编[zh][ù]")
+        text = text.replace("巨著", "巨[zh][ù]")
+        text = text.replace("名著", "名[zh][ù]")
+        text = text.replace("专著", "专[zh][ù]")
+        text = text.replace("论著", "论[zh][ù]")
+        text = text.replace("译著", "译[zh][ù]")
+        text = text.replace("合著", "合[zh][ù]")
+        text = text.replace("著名", "[zh][ù]名")
+        text = text.replace("著作", "[zh][ù]作")
+        text = text.replace("著称", "[zh][ù]称")
+        text = text.replace("著书", "[zh][ù]书")
+        text = text.replace("著述", "[zh][ù]述")
+        text = text.replace("著录", "[zh][ù]录")
+        text = text.replace("著者", "[zh][ù]者")
 
         # Normalize years before other text normalization
         text = _normalize_year(text)
