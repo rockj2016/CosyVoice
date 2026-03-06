@@ -319,50 +319,78 @@ def process_chapter(book_id: str, chapter_data: dict, version_id: str, lang: str
 
 def main():
     global SPK_INFO_PATH
-    
+
     parser = argparse.ArgumentParser(description='TTS Book Processing Script')
     parser.add_argument('--book_id', type=str, required=True, help='Book ID to process')
     parser.add_argument('--spk', type=str, required=True, help='Path to speaker info .pt file')
     parser.add_argument('--lang', type=str, default='zh', choices=['zh', 'en'], help='Language for text splitting: zh (default) or en')
     args = parser.parse_args()
-    
+
     book_id = args.book_id
-    
+
     # Set speaker info path from --spk argument
     SPK_INFO_PATH = args.spk
     print(f"Speaker info: {SPK_INFO_PATH}, Language: {args.lang}")
     print(f"Starting TTS processing for book: {book_id}")
-    
-    # Fetch book content
-    try:
-        book_data = fetch_book_content(book_id)
-    except requests.exceptions.RequestException as e:
-        print(f"Failed to fetch book content: {e}")
-        sys.exit(1)
-    
-    print(f"Book title: {book_data.get('title', 'Unknown')}")
-    print(f"Number of versions: {len(book_data.get('versions', []))}")
-    
+
     # Initialize CosyVoice model (one-time loading)
     init_cosyvoice()
-    
-    # Process each version and chapter
-    for version in book_data.get('versions', []):
-        version_id = version['version_id']
-        mode = version.get('mode', 'unknown')
-        ratio = version.get('ratio', 0)
-        
-        print(f"\n{'#'*60}")
-        print(f"Processing version: {version_id} (mode={mode}, ratio={ratio}%)")
-        print(f"{'#'*60}")
-        
-        for chapter in version.get('version_chapters', []):
-            try:
-                process_chapter(book_id, chapter, version_id, lang=args.lang)
-            except Exception as e:
-                print(f"Error processing chapter {chapter.get('chapter_id')}: {e}")
+
+    import time
+    poll_interval = 60  # 轮询间隔（秒）
+
+    while True:
+        try:
+            book_data = fetch_book_content(book_id)
+        except requests.exceptions.RequestException as e:
+            print(f"Failed to fetch book content: {e}, retrying in {poll_interval}s...")
+            time.sleep(poll_interval)
+            continue
+
+        versions = book_data.get('versions', [])
+        content_complete = book_data.get('content_generation_complete', False)
+
+        if not versions:
+            if content_complete:
+                print("All versions processed and content generation complete. Exiting.")
+                break
+            else:
+                print(f"No versions ready yet, waiting {poll_interval}s...")
+                time.sleep(poll_interval)
                 continue
-    
+
+        print(f"Book title: {book_data.get('title', 'Unknown')}")
+        print(f"Number of versions to process: {len(versions)}")
+
+        # Process available versions
+        for version in versions:
+            version_id = version['version_id']
+            mode = version.get('mode', 'unknown')
+            ratio = version.get('ratio', 0)
+
+            print(f"\n{'#'*60}")
+            print(f"Processing version: {version_id} (mode={mode}, ratio={ratio}%)")
+            print(f"{'#'*60}")
+
+            for chapter in version.get('version_chapters', []):
+                try:
+                    process_chapter(book_id, chapter, version_id, lang=args.lang)
+                except Exception as e:
+                    print(f"Error processing chapter {chapter.get('chapter_id')}: {e}")
+                    continue
+
+        # 处理完当前批次后，如果内容已全部生成，再检查一次是否还有剩余
+        if content_complete:
+            print("Content generation complete, doing final check...")
+            try:
+                final_data = fetch_book_content(book_id)
+                if not final_data.get('versions', []):
+                    print("All done. Exiting.")
+                    break
+            except requests.exceptions.RequestException:
+                print("Final check failed, exiting anyway.")
+                break
+
     print("\n" + "="*60)
     print("TTS processing completed!")
     print("="*60)

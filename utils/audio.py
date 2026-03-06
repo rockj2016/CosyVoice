@@ -227,6 +227,8 @@ def clean_wav_noise(wav_path, rms_threshold=0.015, window_ms=50):
         True if file was modified, False otherwise
     """
     import wave as _wave
+    import time
+    _start_time = time.time()
     try:
         with _wave.open(wav_path, 'rb') as wf:
             _sr = wf.getframerate()
@@ -280,6 +282,8 @@ def clean_wav_noise(wav_path, rms_threshold=0.015, window_ms=50):
                 wf.setframerate(_sr)
                 wf.writeframes(_pcm_out)
 
+        _cost_time = time.time() - _start_time
+        print(f"  Cleaned {os.path.basename(wav_path)} cost time: {_cost_time:.3f}s")
         return _modified
     except Exception as _e:
         print(f"  Warning: clean noise failed for {os.path.basename(wav_path)}: {_e}")
