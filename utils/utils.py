@@ -43,10 +43,8 @@ def split_into_sentences(text: str, max_length: int = 50) -> list[str]:
             buffer = buffer[split_pos:].strip()
     
     # 处理最后的buffer
-    if buffer:
-        # 判断buffer中有中文或英文且长度足够
-        if re.search(r'[\u4e00-\u9fff]', buffer) or len(buffer) > 10:
-            sentences.append(buffer)
+    if buffer and len(buffer.strip()) > 0:
+        sentences.append(buffer)
     
     return sentences
 
@@ -103,7 +101,7 @@ def split_into_sentences_en(text: str, max_words: int = 60) -> list[str]:
             buffer = buffer[split_pos:].strip()
     
     # Flush remaining buffer
-    if buffer and _word_count(buffer.strip()) > 2:
+    if buffer and _word_count(buffer.strip()) >= 1:
         sentences.append(buffer.strip())
     
     return sentences

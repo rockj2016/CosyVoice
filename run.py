@@ -10,6 +10,7 @@ Usage: python run.py --book_id <book_id> --spk <spk_file.pt> [--lang zh|en]
 import os
 import sys
 import json
+import glob
 import argparse
 import requests
 import torch
@@ -47,13 +48,16 @@ _cosyvoice_instance = None
 _spk_name = None
 
 
-def init_cosyvoice():
+def init_cosyvoice(spk_info_path=None):
     """Initialize CosyVoice model and load speaker info (singleton)"""
     global _cosyvoice_instance, _spk_name
-    
+
     if _cosyvoice_instance is not None:
         return _cosyvoice_instance, _spk_name
-    
+
+    if spk_info_path is None:
+        spk_info_path = SPK_INFO_PATH
+
     print(f"Initializing CosyVoice model from {MODEL_DIR}...")
     _cosyvoice_instance = AutoModel(
         model_dir=MODEL_DIR,
@@ -61,10 +65,10 @@ def init_cosyvoice():
         load_vllm=True,
         fp16=False
     )
-    
+
     # Load speaker info
-    print(f"Loading speaker info from {SPK_INFO_PATH}...")
-    spk2info = torch.load(SPK_INFO_PATH, map_location='cpu')
+    print(f"Loading speaker info from {spk_info_path}...")
+    spk2info = torch.load(spk_info_path, map_location='cpu')
     _spk_name = list(spk2info.keys())[0]
     _cosyvoice_instance.frontend.spk2info[_spk_name] = spk2info[_spk_name]
     print(f"Loaded speaker: {_spk_name}")
@@ -95,9 +99,6 @@ def cosyvoice_tts(text: str, output_path: str) -> bool:
             stream=False
         )):
             torchaudio.save(output_path, result['tts_speech'], cosyvoice.sample_rate)
-            # 清除首尾噪声
-            from utils.audio import clean_wav_noise
-            clean_wav_noise(os.path.abspath(output_path))
             break  # Only need first result
         
         return True
@@ -163,7 +164,7 @@ def submit_chapter_audio(chapter_id: str, s3_key: str, audio_duration: int, capt
     return result.get('success', False)
 
 
-def process_chapter(book_id: str, chapter_data: dict, version_id: str, lang: str = 'zh') -> bool:
+def process_chapter(book_id: str, chapter_data: dict, version_id: str, lang: str = 'zh', s3: S3 = None) -> bool:
     """
     Process a single chapter: split text, generate TTS, merge audio, upload
     
@@ -254,24 +255,26 @@ def process_chapter(book_id: str, chapter_data: dict, version_id: str, lang: str
         print(f"Warning: No text to process for chapter {chapter_id}")
         return False
     
-    # Save text_index.json
-    with open(f'{audio_dir}/text_index.json', 'w', encoding='utf-8') as f:
-        json.dump(text_index, f, ensure_ascii=False, indent=4)
-    
     # Generate audio for each sentence
-    for i in range(1, len(text_index) + 1):
+    total_sentences = len(text_index)
+    for i in range(1, total_sentences + 1):
         text_item = text_index[str(i)]
         sentence = text_item["text"]
         audio_path = f"{audio_dir}/{i}.wav"
-        
-        print(f"Generating audio for sentence {i}/{len(text_index)}: {len(sentence)} {sentence}...")
-        
+
+        print(f"Generating audio for sentence {i}/{total_sentences}: {len(sentence)} {sentence}...")
+
         success = cosyvoice_tts(sentence, audio_path)
-        
+
         if not success:
-            print(f"Failed to generate audio for sentence {i}")
+            print(f"Failed to generate audio for sentence {i}, removing from text_index")
+            del text_index[str(i)]
             continue
-    
+
+    # Save text_index.json (after removing any failed entries)
+    with open(f'{audio_dir}/text_index.json', 'w', encoding='utf-8') as f:
+        json.dump(text_index, f, ensure_ascii=False, indent=4)
+
     # Merge audio and generate subtitles
     audio_duration = merge_audio_and_generate_subtitles(audio_dir)
     
@@ -280,7 +283,8 @@ def process_chapter(book_id: str, chapter_data: dict, version_id: str, lang: str
         return False
     
     # Upload to S3
-    s3 = S3()
+    if s3 is None:
+        s3 = S3()
     merged_audio_path = f"{audio_dir}/merged.mp3"
     s3_url, s3_key = s3.upload_audio(merged_audio_path, book_id, chapter_id)
     print(f"Uploaded to S3: {s3_url}")
@@ -303,7 +307,6 @@ def process_chapter(book_id: str, chapter_data: dict, version_id: str, lang: str
     if success:
         print(f"Cleaning up audio files for chapter {chapter_id}...")
         try:
-            import glob
             # 删除合成前的音频片段
             for wav_path in glob.glob(f"{audio_dir}/*.wav"):
                 os.remove(wav_path)
@@ -318,8 +321,6 @@ def process_chapter(book_id: str, chapter_data: dict, version_id: str, lang: str
 
 
 def main():
-    global SPK_INFO_PATH
-
     parser = argparse.ArgumentParser(description='TTS Book Processing Script')
     parser.add_argument('--book_id', type=str, required=True, help='Book ID to process')
     parser.add_argument('--spk', type=str, required=True, help='Path to speaker info .pt file')
@@ -328,16 +329,15 @@ def main():
 
     book_id = args.book_id
 
-    # Set speaker info path from --spk argument
-    SPK_INFO_PATH = args.spk
-    print(f"Speaker info: {SPK_INFO_PATH}, Language: {args.lang}")
+    print(f"Speaker info: {args.spk}, Language: {args.lang}")
     print(f"Starting TTS processing for book: {book_id}")
 
     # Initialize CosyVoice model (one-time loading)
-    init_cosyvoice()
+    init_cosyvoice(spk_info_path=args.spk)
 
     import time
     poll_interval = 60  # 轮询间隔（秒）
+    s3 = S3()
 
     while True:
         try:
@@ -374,7 +374,7 @@ def main():
 
             for chapter in version.get('version_chapters', []):
                 try:
-                    process_chapter(book_id, chapter, version_id, lang=args.lang)
+                    process_chapter(book_id, chapter, version_id, lang=args.lang, s3=s3)
                 except Exception as e:
                     print(f"Error processing chapter {chapter.get('chapter_id')}: {e}")
                     continue

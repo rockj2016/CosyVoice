@@ -194,7 +194,7 @@ import numpy as np
 #             # 生成字幕数据
 #             merge_duration_and_text(audio_dir)
             
-#             return int(float(total_duration))
+#             return round(float(total_duration))
             
 #         finally:
 #             # 清理临时文件
@@ -587,7 +587,7 @@ def merge_audio_and_generate_subtitles(audio_dir, crossfade_ms=10):
         # 生成字幕数据
         merge_duration_and_text(audio_dir)
 
-        return int(float(total_duration))
+        return round(float(total_duration))
 
     except Exception as e:
         print(f"Error merging audio with Crossfade: {str(e)}")
@@ -650,7 +650,7 @@ def merge_duration_and_text(audio_dir):
             }
             
             data.append(caption_item)
-            start_at += duration
+            start_at = end_at
         
         # 保存字幕数据
         with open(f'{audio_dir}/data.json', 'w', encoding='utf-8') as f:
