@@ -114,17 +114,20 @@ def cosyvoice_tts(text: str, output_path: str) -> bool:
         return False
 
 
-def fetch_book_content(book_id: str) -> dict:
+def fetch_book_content(book_id: str, force: bool = False) -> dict:
     """
     Fetch book content from external API
-    
+
     Args:
         book_id: The book ID to fetch
-        
+        force: If True, include COMPLETED chapters for re-processing
+
     Returns:
         Book content data dict
     """
     url = f"{EXTERNAL_API_HOST}/autodl/book/{book_id}/content"
+    if force:
+        url += "?force=true"
     headers = {
         "X-AutoDL-API-Key": AUTODL_API_KEY
     }
@@ -329,11 +332,22 @@ def process_chapter(book_id: str, chapter_data: dict, version_id: str, lang: str
     return success
 
 
+def _version_matches_modes(version, allowed_modes):
+    """Check if a version matches the allowed modes filter."""
+    mode = version.get('mode', '')
+    ratio = version.get('ratio', 0)
+    if mode == 'summarize':
+        return f"summarize_{ratio}" in allowed_modes
+    return mode in allowed_modes
+
+
 def main():
     parser = argparse.ArgumentParser(description='TTS Book Processing Script')
     parser.add_argument('--book_id', type=str, required=True, help='Book ID to process')
     parser.add_argument('--spk', type=str, required=True, help='Path to speaker info .pt file')
     parser.add_argument('--lang', type=str, default='zh', choices=['zh', 'en'], help='Language for text splitting: zh (default) or en')
+    parser.add_argument('--force', action='store_true', default=False, help='Force re-process completed chapters (silent update)')
+    parser.add_argument('--modes', type=str, default=None, help='Comma-separated modes to process, e.g. "summarize_20,guide"')
     args = parser.parse_args()
 
     book_id = args.book_id
@@ -345,8 +359,44 @@ def main():
     init_cosyvoice(spk_info_path=args.spk)
 
     import time
-    poll_interval = 60  # 轮询间隔（秒）
     s3 = S3()
+
+    # Force mode: fetch once, process, exit
+    if args.force:
+        print("Force mode: processing completed chapters for re-generation...")
+        try:
+            book_data = fetch_book_content(book_id, force=True)
+        except Exception as e:
+            print(f"Failed to fetch book content in force mode: {e}")
+            return
+
+        versions = book_data.get('versions', [])
+        if args.modes:
+            allowed = set(args.modes.split(","))
+            versions = [v for v in versions if _version_matches_modes(v, allowed)]
+            print(f"Filtered to modes {allowed}: {len(versions)} versions")
+
+        print(f"Book title: {book_data.get('title', 'Unknown')}")
+        print(f"Number of versions to process: {len(versions)}")
+
+        for version in versions:
+            version_id = version['version_id']
+            mode = version.get('mode', 'unknown')
+            ratio = version.get('ratio', 0)
+            print(f"\n{'#'*60}")
+            print(f"Processing version: {version_id} (mode={mode}, ratio={ratio}%)")
+            print(f"{'#'*60}")
+            for chapter in version.get('version_chapters', []):
+                try:
+                    process_chapter(book_id, chapter, version_id, lang=args.lang, s3=s3)
+                except Exception as e:
+                    print(f"Error processing chapter {chapter.get('chapter_id')}: {e}")
+                    continue
+
+        print("\nForce mode processing completed!")
+        return
+
+    poll_interval = 60  # 轮询间隔（秒）
 
     while True:
         try:
