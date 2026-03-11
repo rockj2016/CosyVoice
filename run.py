@@ -36,6 +36,11 @@ from utils.audio import merge_audio_and_generate_subtitles
 from utils.normalize import smartread_text_normalize
 from utils.s3 import S3
 
+
+class BookDeletedException(Exception):
+    """Raised when the book has been deleted (API returns 404)."""
+    pass
+
 # CosyVoice imports
 from vllm import ModelRegistry
 from cosyvoice.vllm.cosyvoice2 import CosyVoice2ForCausalLM
@@ -126,6 +131,8 @@ def fetch_book_content(book_id: str) -> dict:
     
     print(f"Fetching book content from {url}...")
     response = requests.get(url, headers=headers)
+    if response.status_code == 404:
+        raise BookDeletedException(f"Book {book_id} not found (deleted?)")
     response.raise_for_status()
     
     return response.json()
@@ -344,6 +351,9 @@ def main():
     while True:
         try:
             book_data = fetch_book_content(book_id)
+        except BookDeletedException as e:
+            print(f"Book deleted: {e}. Stopping container.")
+            break
         except requests.exceptions.RequestException as e:
             print(f"Failed to fetch book content: {e}, retrying in {poll_interval}s...")
             time.sleep(poll_interval)
@@ -389,6 +399,9 @@ def main():
                 if not final_data.get('versions', []):
                     print("All done. Exiting.")
                     break
+            except BookDeletedException:
+                print("Book deleted during final check. Exiting.")
+                break
             except requests.exceptions.RequestException:
                 print("Final check failed, exiting anyway.")
                 break
