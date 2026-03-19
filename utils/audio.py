@@ -428,7 +428,7 @@ def merge_audio_and_generate_subtitles(audio_dir, crossfade_ms=10):
 
         duration_dict = {}
         total_duration = Decimal('0')
-        stop_duration = Decimal('0.2')       # 200ms 停顿
+        stop_duration = Decimal('0.1')       # 100ms 停顿
         title_stop_duration = Decimal('1.0')  # 1s 停顿 for titles
 
         # 读取 text_index 来确定哪些是标题

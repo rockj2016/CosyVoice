@@ -1,7 +1,7 @@
 import re
 
 
-def split_into_sentences(text: str, max_length: int = 50) -> list[str]:
+def split_into_sentences(text: str, max_length: int = 70) -> list[str]:
     """
     将中文文本按标点符号分割成句子列表
     支持：。，！？、；：及对应的英文标点
@@ -11,7 +11,7 @@ def split_into_sentences(text: str, max_length: int = 50) -> list[str]:
         max_length: 单个句子的最大长度，超过会强制分割
     """
     # 按多种标点分割，包括逗号、句号、感叹号、问号、顿号、分号、冒号、换行符
-    parts = re.split(r'(?<=[。！？!?，,；;：:])', text)
+    parts = re.split(r'(?<=[。！？!?])', text)
     
     sentences = []
     buffer = ''
