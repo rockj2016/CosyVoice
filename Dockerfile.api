@@ -1,0 +1,71 @@
+FROM nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04
+
+ARG VENV_NAME="cosyvoice"
+ENV VENV=$VENV_NAME
+ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+SHELL ["/bin/bash", "--login", "-c"]
+
+# System dependencies
+RUN apt-get update -y --fix-missing && \
+    apt-get install -y git build-essential curl wget ffmpeg unzip git-lfs sox libsox-dev && \
+    apt-get clean && rm -rf /var/lib/apt/lists/* && \
+    git lfs install
+
+# Install miniforge (conda)
+RUN wget --quiet https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh -O ~/miniforge.sh && \
+    /bin/bash ~/miniforge.sh -b -p /opt/conda && \
+    rm ~/miniforge.sh && \
+    ln -s /opt/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh && \
+    echo "source /opt/conda/etc/profile.d/conda.sh" >> ~/.bashrc && \
+    echo "conda activate ${VENV}" >> ~/.bashrc
+
+ENV PATH=/opt/conda/bin:$PATH
+
+RUN conda config --add channels conda-forge && \
+    conda config --set channel_priority strict
+
+# Create conda environment with Python 3.10
+RUN conda create -y -n ${VENV} python=3.10
+ENV CONDA_DEFAULT_ENV=${VENV}
+ENV PATH=/opt/conda/bin:/opt/conda/envs/${VENV}/bin:$PATH
+
+# Install pynini (requires conda)
+RUN conda activate ${VENV} && conda install -y -c conda-forge pynini==2.1.5
+
+WORKDIR /workspace/CosyVoice
+
+# Install Python dependencies (copy requirements.txt alone for layer caching)
+COPY requirements.txt /tmp/requirements.txt
+RUN conda activate ${VENV} && \
+    pip install -r /tmp/requirements.txt -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host=mirrors.aliyun.com --no-cache-dir
+
+# Install vLLM 0.11.x (V1 engine) and compatible versions
+RUN conda activate ${VENV} && \
+    pip install vllm==0.11.0 transformers==4.57.1 numpy==1.26.4 python-dotenv \
+    -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host=mirrors.aliyun.com --no-cache-dir
+
+# Download models from ModelScope
+RUN conda activate ${VENV} && \
+    python -c "from modelscope import snapshot_download; snapshot_download('FunAudioLLM/Fun-CosyVoice3-0.5B-2512', local_dir='/models/Fun-CosyVoice3-0.5B')"
+
+# Download and install ttsfrd (text frontend)
+RUN conda activate ${VENV} && \
+    python -c "from modelscope import snapshot_download; snapshot_download('iic/CosyVoice-ttsfrd', local_dir='/models/CosyVoice-ttsfrd')" && \
+    cd /models/CosyVoice-ttsfrd && \
+    unzip resource.zip -d . && \
+    pip install ttsfrd_dependency-0.1-py3-none-any.whl && \
+    pip install ttsfrd-0.4.2-cp310-cp310-linux_x86_64.whl
+
+ENV PYTHONPATH="/workspace/CosyVoice:/workspace/CosyVoice/third_party/Matcha-TTS"
+ENV MODEL_DIR=/models/Fun-CosyVoice3-0.5B
+
+# Default speaker (override with -e DEFAULT_SPK=xxx)
+ENV DEFAULT_SPK=cn_male_1
+ENV API_HOST=0.0.0.0
+ENV API_PORT=6006
+
+EXPOSE 6006
+
+ENTRYPOINT ["bash", "-lc", "python api.py --spk ${DEFAULT_SPK} --host ${API_HOST} --port ${API_PORT}"]
