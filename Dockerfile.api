@@ -43,9 +43,9 @@ RUN conda activate ${VENV} && \
     pip install openai-whisper==20231117 --no-build-isolation --no-cache-dir && \
     pip install -r /tmp/requirements.txt --no-cache-dir
 
-# Install vLLM 0.11.x (V1 engine) and compatible versions
+# Install vLLM 0.11.x (V1 engine) and compatible versions, pin ruamel.yaml for hyperpyyaml compatibility
 RUN conda activate ${VENV} && \
-    pip install vllm==0.11.0 transformers==4.57.1 numpy==1.26.4 python-dotenv --no-cache-dir
+    pip install vllm==0.11.0 transformers==4.57.1 numpy==1.26.4 python-dotenv "ruamel.yaml<0.18" --no-cache-dir
 
 # Download models from ModelScope
 RUN conda activate ${VENV} && \
