@@ -12,9 +12,9 @@ import uvicorn
 import torch
 import torchaudio
 from fastapi import FastAPI, HTTPException, Header, Depends
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Generator
 import uuid
 from dotenv import load_dotenv
 from utils.normalize import smartread_text_normalize
@@ -57,6 +57,7 @@ app = FastAPI(title="CosyVoice TTS API")
 
 class TTSRequest(BaseModel):
     text: str = Field(..., max_length=100, description="Text to synthesize (max 100 chars)")
+    stream: bool = Field(False, description="If true, stream audio chunks as they are generated")
 
 def init_cosyvoice():
     """Initialize CosyVoice model and load speaker info (singleton)"""
@@ -91,33 +92,52 @@ async def verify_api_key(x_autodl_api_key: str = Header(...)):
 async def startup_event():
     init_cosyvoice()
 
+def _tts_stream_generator(cosyvoice, text: str, spk_name: str) -> Generator[bytes, None, None]:
+    """Yield raw PCM float32 bytes as each audio chunk is generated."""
+    for result in cosyvoice.inference_zero_shot(
+        text,
+        'You are a helpful assistant.<|endofprompt|>',
+        '',
+        zero_shot_spk_id=spk_name,
+        stream=True
+    ):
+        chunk = result['tts_speech'].numpy()  # (1, num_samples)
+        yield chunk.tobytes()
+
+
 @app.post("/tts")
 async def generate_tts(request: TTSRequest, api_key: str = Depends(verify_api_key)):
 
     cosyvoice, spk_name = init_cosyvoice()
-    
-    # Create a unique filename for the output
+    text = smartread_text_normalize(request.text)
+
+    if request.stream:
+        return StreamingResponse(
+            _tts_stream_generator(cosyvoice, text, spk_name),
+            media_type="audio/pcm",
+            headers={
+                "X-Sample-Rate": str(cosyvoice.sample_rate),
+                "X-Audio-Format": "float32",
+                "X-Channels": "1",
+            },
+        )
+
+    # Non-streaming: generate full audio and return as WAV file
     output_filename = f"tts_output_{uuid.uuid4()}.wav"
     output_path = os.path.join("/tmp", output_filename)
-    
-    # Generate speech using pre-loaded speaker info
-    # Using the same logic as run.py
+
     generated = False
-    text = smartread_text_normalize(request.text)
-    for i, result in enumerate(cosyvoice.inference_zero_shot(
+    for result in cosyvoice.inference_zero_shot(
         text,
         'You are a helpful assistant.<|endofprompt|>',
-        '',  # Empty prompt_wav since we use cached spk_info
+        '',
         zero_shot_spk_id=spk_name,
         stream=False
-    )):
+    ):
         torchaudio.save(output_path, result['tts_speech'], cosyvoice.sample_rate)
-        # 清除首尾噪声
-        from utils.audio import clean_wav_noise
-        clean_wav_noise(os.path.abspath(output_path))
         generated = True
-        break  # Only need first result
-        
+        break
+
     if not generated:
         raise HTTPException(status_code=500, detail="Failed to generate audio")
 
