@@ -69,4 +69,4 @@ ENV API_PORT=6006
 
 EXPOSE 6006
 
-ENTRYPOINT ["bash", "-c", "source /opt/conda/etc/profile.d/conda.sh && conda activate cosyvoice && python api.py --spk ${DEFAULT_SPK} --host ${API_HOST} --port ${API_PORT}"]
+ENTRYPOINT ["bash", "-c", "/opt/conda/envs/cosyvoice/bin/python api.py --spk ${DEFAULT_SPK} --host ${API_HOST} --port ${API_PORT}"]
