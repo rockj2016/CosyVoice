@@ -167,19 +167,19 @@ python spk_example.py --wav_path ./asset/nlcj.wav \
                     --output_path ./spkinfo.pt \
                     --model_dir pretrained_models/Fun-CosyVoice3-0.5B
 """
-"""
-python genrate_spk.py --wav_path ./asset/en_voice.wav \
-                    --prompt_text "When I read these sections, I kept catching myself thinking." \
-                    --spk_name "nlcj" \
-                    --output_path ./spkinfo_en.pt \
-                    --model_dir pretrained_models/Fun-CosyVoice3-0.5B
-"""
+
+# python genrate_spk.py --wav_path ./asset/en_male_1.wav \
+#                     --prompt_text "When I read these sections, I kept catching myself thinking." \
+#                     --spk_name "en_male_1" \
+#                     --output_path ./spk/en_male_1.pt \
+#                     --model_dir pretrained_models/Fun-CosyVoice3-0.5B
 
 
-# python genrate_spk.py --wav_path ./asset/cn_3.wav \
+
+# python genrate_spk.py --wav_path ./asset/cn_female_1.wav \
 #                     --prompt_text "这是一款为高效学习设计的智能听书软件。" \
-#                     --spk_name "nlcj" \
-#                     --output_path ./spk/cn_1.pt \
+#                     --spk_name "cn_female_1" \
+#                     --output_path ./spk/cn_female_1.pt \
 #                     --model_dir pretrained_models/Fun-CosyVoice3-0.5B
 
 if __name__ == "__main__":

@@ -3,10 +3,11 @@
 """
 TTS API Service
 
-Usage: python api.py --spk xxxx.pt [yyyy.pt ...]
+Usage: python api.py --spk cn_male_1
 """
 import os
 import sys
+import glob
 import argparse
 import uvicorn
 import torch
@@ -27,14 +28,15 @@ load_dotenv()
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description='CosyVoice TTS API Service')
-parser.add_argument('--spk', type=str, nargs='+', required=True, help='Speaker .pt files. First one is the default voice.')
+parser.add_argument('--spk', type=str, required=True, help='Default speaker name (filename without .pt in spk/ folder)')
 parser.add_argument('--host', type=str, default=None, help='API host (overrides API_HOST env var)')
 parser.add_argument('--port', type=int, default=None, help='API port (overrides API_PORT env var)')
 args = parser.parse_args()
 
 # Configuration from .env + CLI args
 AUTODL_API_KEY = os.getenv('AUTODL_API_KEY', 'autodl-tts-secret-key-2024')
-SPK_INFO_PATHS = args.spk  # List of .pt files
+SPK_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'spk')
+DEFAULT_SPK = args.spk
 MODEL_DIR = os.getenv('MODEL_DIR', 'pretrained_models/Fun-CosyVoice3-0.5B')
 HOST = args.host or os.getenv('API_HOST', '0.0.0.0')
 PORT = args.port or int(os.getenv('API_PORT', 6006))
@@ -75,15 +77,22 @@ def init_cosyvoice():
         fp16=False
     )
 
-    # Load all speaker files
-    for i, spk_path in enumerate(SPK_INFO_PATHS):
-        print(f"Loading speaker info from {spk_path}...")
+    # Load all .pt files from spk/ directory
+    spk_files = sorted(glob.glob(os.path.join(SPK_DIR, '*.pt')))
+    if not spk_files:
+        raise RuntimeError(f"No .pt files found in {SPK_DIR}")
+
+    for spk_path in spk_files:
+        spk_name = os.path.splitext(os.path.basename(spk_path))[0]
+        print(f"Loading speaker: {spk_name} from {spk_path}...")
         spk2info = torch.load(spk_path, map_location='cpu')
-        for name, info in spk2info.items():
-            _cosyvoice_instance.frontend.spk2info[name] = info
-            if i == 0 and _default_spk_name is None:
-                _default_spk_name = name
-            print(f"  Loaded speaker: {name}")
+        # Use filename (without .pt) as the speaker name
+        info = list(spk2info.values())[0]
+        _cosyvoice_instance.frontend.spk2info[spk_name] = info
+
+    _default_spk_name = DEFAULT_SPK
+    if _default_spk_name not in _cosyvoice_instance.frontend.spk2info:
+        raise RuntimeError(f"Default speaker '{_default_spk_name}' not found. Available: {list(_cosyvoice_instance.frontend.spk2info.keys())}")
 
     print(f"Default speaker: {_default_spk_name}")
     print(f"All speakers: {list(_cosyvoice_instance.frontend.spk2info.keys())}")
