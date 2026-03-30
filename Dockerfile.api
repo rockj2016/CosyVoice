@@ -39,12 +39,12 @@ WORKDIR /workspace/CosyVoice
 # Install Python dependencies (copy requirements.txt alone for layer caching)
 COPY requirements.txt /tmp/requirements.txt
 RUN conda activate ${VENV} && \
-    pip install -r /tmp/requirements.txt -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host=mirrors.aliyun.com --no-cache-dir
+    pip install setuptools --no-cache-dir && \
+    pip install -r /tmp/requirements.txt --no-cache-dir
 
 # Install vLLM 0.11.x (V1 engine) and compatible versions
 RUN conda activate ${VENV} && \
-    pip install vllm==0.11.0 transformers==4.57.1 numpy==1.26.4 python-dotenv \
-    -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host=mirrors.aliyun.com --no-cache-dir
+    pip install vllm==0.11.0 transformers==4.57.1 numpy==1.26.4 python-dotenv --no-cache-dir
 
 # Download models from ModelScope
 RUN conda activate ${VENV} && \
