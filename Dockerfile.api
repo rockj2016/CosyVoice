@@ -39,7 +39,8 @@ WORKDIR /workspace/CosyVoice
 # Install Python dependencies (copy requirements.txt alone for layer caching)
 COPY requirements.txt /tmp/requirements.txt
 RUN conda activate ${VENV} && \
-    pip install setuptools --no-cache-dir && \
+    pip install "setuptools<75" wheel --no-cache-dir && \
+    pip install openai-whisper==20231117 --no-build-isolation --no-cache-dir && \
     pip install -r /tmp/requirements.txt --no-cache-dir
 
 # Install vLLM 0.11.x (V1 engine) and compatible versions
