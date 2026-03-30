@@ -3,7 +3,7 @@
 """
 TTS API Service
 
-Usage: python api.py --spk=xxxx.pt
+Usage: python api.py --spk xxxx.pt [yyyy.pt ...]
 """
 import os
 import sys
@@ -14,7 +14,7 @@ import torchaudio
 from fastapi import FastAPI, HTTPException, Header, Depends
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
-from typing import Generator
+from typing import Generator, Optional
 import uuid
 from dotenv import load_dotenv
 from utils.normalize import smartread_text_normalize
@@ -27,14 +27,14 @@ load_dotenv()
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description='CosyVoice TTS API Service')
-parser.add_argument('--spk', type=str, required=True, help='Path to speaker .pt file (e.g., xxxx.pt)')
+parser.add_argument('--spk', type=str, nargs='+', required=True, help='Speaker .pt files. First one is the default voice.')
 parser.add_argument('--host', type=str, default=None, help='API host (overrides API_HOST env var)')
 parser.add_argument('--port', type=int, default=None, help='API port (overrides API_PORT env var)')
 args = parser.parse_args()
 
 # Configuration from .env + CLI args
 AUTODL_API_KEY = os.getenv('AUTODL_API_KEY', 'autodl-tts-secret-key-2024')
-SPK_INFO_PATH = args.spk
+SPK_INFO_PATHS = args.spk  # List of .pt files
 MODEL_DIR = os.getenv('MODEL_DIR', 'pretrained_models/Fun-CosyVoice3-0.5B')
 HOST = args.host or os.getenv('API_HOST', '0.0.0.0')
 PORT = args.port or int(os.getenv('API_PORT', 6006))
@@ -51,21 +51,22 @@ from cosyvoice.cli.cosyvoice import AutoModel
 
 # Global CosyVoice instance
 _cosyvoice_instance = None
-_spk_name = None
+_default_spk_name = None
 
 app = FastAPI(title="CosyVoice TTS API")
 
 class TTSRequest(BaseModel):
     text: str = Field(..., max_length=100, description="Text to synthesize (max 100 chars)")
     stream: bool = Field(False, description="If true, stream audio chunks as they are generated")
+    spk: Optional[str] = Field(None, description="Speaker name. If omitted, uses the default speaker.")
 
 def init_cosyvoice():
     """Initialize CosyVoice model and load speaker info (singleton)"""
-    global _cosyvoice_instance, _spk_name
-    
+    global _cosyvoice_instance, _default_spk_name
+
     if _cosyvoice_instance is not None:
-        return _cosyvoice_instance, _spk_name
-    
+        return _cosyvoice_instance, _default_spk_name
+
     print(f"Initializing CosyVoice model from {MODEL_DIR}...")
     _cosyvoice_instance = AutoModel(
         model_dir=MODEL_DIR,
@@ -73,15 +74,21 @@ def init_cosyvoice():
         load_vllm=True,
         fp16=False
     )
-    
-    # Load speaker info
-    print(f"Loading speaker info from {SPK_INFO_PATH}...")
-    spk2info = torch.load(SPK_INFO_PATH, map_location='cpu')
-    _spk_name = list(spk2info.keys())[0]
-    _cosyvoice_instance.frontend.spk2info[_spk_name] = spk2info[_spk_name]
-    print(f"Loaded speaker: {_spk_name}")
-    
-    return _cosyvoice_instance, _spk_name
+
+    # Load all speaker files
+    for i, spk_path in enumerate(SPK_INFO_PATHS):
+        print(f"Loading speaker info from {spk_path}...")
+        spk2info = torch.load(spk_path, map_location='cpu')
+        for name, info in spk2info.items():
+            _cosyvoice_instance.frontend.spk2info[name] = info
+            if i == 0 and _default_spk_name is None:
+                _default_spk_name = name
+            print(f"  Loaded speaker: {name}")
+
+    print(f"Default speaker: {_default_spk_name}")
+    print(f"All speakers: {list(_cosyvoice_instance.frontend.spk2info.keys())}")
+
+    return _cosyvoice_instance, _default_spk_name
 
 async def verify_api_key(x_autodl_api_key: str = Header(...)):
     if x_autodl_api_key != AUTODL_API_KEY:
@@ -105,11 +112,27 @@ def _tts_stream_generator(cosyvoice, text: str, spk_name: str) -> Generator[byte
         yield chunk.tobytes()
 
 
+@app.get("/speakers")
+async def list_speakers(api_key: str = Depends(verify_api_key)):
+    cosyvoice, default_spk = init_cosyvoice()
+    return {
+        "default": default_spk,
+        "speakers": list(cosyvoice.frontend.spk2info.keys()),
+    }
+
+
 @app.post("/tts")
 async def generate_tts(request: TTSRequest, api_key: str = Depends(verify_api_key)):
 
-    cosyvoice, spk_name = init_cosyvoice()
+    cosyvoice, default_spk = init_cosyvoice()
     text = smartread_text_normalize(request.text)
+
+    spk_name = request.spk or default_spk
+    if spk_name not in cosyvoice.frontend.spk2info:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown speaker '{spk_name}'. Available: {list(cosyvoice.frontend.spk2info.keys())}",
+        )
 
     if request.stream:
         return StreamingResponse(
