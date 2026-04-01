@@ -7,11 +7,17 @@ Book/chapter processing logic. Calls the TTS API at :6006 for audio generation
 instead of loading CosyVoice models directly.
 """
 import os
+import sys
 import json
 import glob
 import asyncio
 from datetime import datetime
 from dataclasses import dataclass, field
+
+# Add project root to sys.path so utils.* imports work
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
 
 import requests
 
