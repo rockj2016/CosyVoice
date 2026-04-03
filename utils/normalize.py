@@ -41,6 +41,8 @@ def smartread_text_normalize(text):
     text = text.replace("”", "")
     text = text.replace("“", "")
     if contains_chinese(text):
+        # 成长
+        text = text.replace("成长", "成[zhǎng]")
         
         # 多音字: 著 -> zhù
         text = text.replace("臭名昭著", "臭名昭[zh][ù]")

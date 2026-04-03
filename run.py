@@ -141,16 +141,17 @@ def fetch_book_content(book_id: str, force: bool = False) -> dict:
     return response.json()
 
 
-def submit_chapter_audio(chapter_id: str, s3_key: str, audio_duration: int, caption_data: str) -> bool:
+def submit_chapter_audio(chapter_id: str, s3_key: str, audio_duration: int, caption_data: str, voice_id: str = None) -> bool:
     """
     Submit chapter audio data to external API
-    
+
     Args:
         chapter_id: Book version chapter ID
         s3_key: S3 key of the uploaded audio
         audio_duration: Audio duration in seconds
         caption_data: JSON string of caption data
-        
+        voice_id: Voice UUID for multi-voice support
+
     Returns:
         True if successful, False otherwise
     """
@@ -159,32 +160,35 @@ def submit_chapter_audio(chapter_id: str, s3_key: str, audio_duration: int, capt
         "X-AutoDL-API-Key": AUTODL_API_KEY,
         "Content-Type": "application/json"
     }
-    
+
     payload = {
         "book_version_chapter_id": chapter_id,
         "s3_key": s3_key,
         "audio_duration": audio_duration,
-        "caption_data": caption_data
+        "caption_data": caption_data,
     }
-    
-    print(f"Submitting audio for chapter {chapter_id}...")
+    if voice_id:
+        payload["voice_id"] = voice_id
+
+    print(f"Submitting audio for chapter {chapter_id} (voice_id={voice_id})...")
     response = requests.post(url, headers=headers, json=payload)
     response.raise_for_status()
-    
+
     result = response.json()
     print(f"Submit result: {result.get('message', 'success')}")
     return result.get('success', False)
 
 
-def process_chapter(book_id: str, chapter_data: dict, version_id: str, lang: str = 'zh', s3: S3 = None) -> bool:
+def process_chapter(book_id: str, chapter_data: dict, version_id: str, lang: str = 'zh', s3: S3 = None, voice_id: str = None) -> bool:
     """
     Process a single chapter: split text, generate TTS, merge audio, upload
-    
+
     Args:
         book_id: The book ID
         chapter_data: Chapter content data
         version_id: Book version ID
-        
+        voice_id: Voice UUID for multi-voice support
+
     Returns:
         True if successful, False otherwise
     """
@@ -294,26 +298,32 @@ def process_chapter(book_id: str, chapter_data: dict, version_id: str, lang: str
         print(f"Failed to merge audio for chapter {chapter_id}")
         return False
     
-    # Upload to S3
+    # Upload to S3 (voice_id 区分路径避免覆盖)
     if s3 is None:
         s3 = S3()
     merged_audio_path = f"{audio_dir}/merged.mp3"
-    s3_url, s3_key = s3.upload_audio(merged_audio_path, book_id, chapter_id)
+    if voice_id:
+        s3_url, s3_key = s3.upload_audio(
+            merged_audio_path, book_id, f"{chapter_id}/{voice_id}"
+        )
+    else:
+        s3_url, s3_key = s3.upload_audio(merged_audio_path, book_id, chapter_id)
     print(f"Uploaded to S3: {s3_url}")
-    
+
     # Read caption data
     caption_data = "[]"
     data_path = f"{audio_dir}/data.json"
     if os.path.exists(data_path):
         with open(data_path, 'r', encoding='utf-8') as f:
             caption_data = json.dumps(json.load(f), ensure_ascii=False)
-    
+
     # Submit to external API
     success = submit_chapter_audio(
         chapter_id=chapter_id,
         s3_key=s3_key,
         audio_duration=audio_duration,
-        caption_data=caption_data
+        caption_data=caption_data,
+        voice_id=voice_id,
     )
     
     if success:
@@ -348,11 +358,13 @@ def main():
     parser.add_argument('--lang', type=str, default='zh', choices=['zh', 'en'], help='Language for text splitting: zh (default) or en')
     parser.add_argument('--force', action='store_true', default=False, help='Force re-process completed chapters (silent update)')
     parser.add_argument('--modes', type=str, default=None, help='Comma-separated modes to process, e.g. "summarize_20,guide"')
+    parser.add_argument('--voice_id', type=str, default=None, help='Voice UUID for multi-voice audio callback')
     args = parser.parse_args()
 
     book_id = args.book_id
+    voice_id = args.voice_id
 
-    print(f"Speaker info: {args.spk}, Language: {args.lang}")
+    print(f"Speaker info: {args.spk}, Language: {args.lang}, Voice ID: {voice_id}")
     print(f"Starting TTS processing for book: {book_id}")
 
     # Initialize CosyVoice model (one-time loading)
@@ -388,7 +400,7 @@ def main():
             print(f"{'#'*60}")
             for chapter in version.get('version_chapters', []):
                 try:
-                    process_chapter(book_id, chapter, version_id, lang=args.lang, s3=s3)
+                    process_chapter(book_id, chapter, version_id, lang=args.lang, s3=s3, voice_id=voice_id)
                 except Exception as e:
                     print(f"Error processing chapter {chapter.get('chapter_id')}: {e}")
                     continue
@@ -436,7 +448,7 @@ def main():
 
             for chapter in version.get('version_chapters', []):
                 try:
-                    process_chapter(book_id, chapter, version_id, lang=args.lang, s3=s3)
+                    process_chapter(book_id, chapter, version_id, lang=args.lang, s3=s3, voice_id=voice_id)
                 except Exception as e:
                     print(f"Error processing chapter {chapter.get('chapter_id')}: {e}")
                     continue
