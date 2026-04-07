@@ -27,7 +27,7 @@ load_dotenv()
 # Configuration from .env
 EXTERNAL_API_HOST = os.getenv('EXTERNAL_API_HOST', 'http://localhost:8000')
 AUTODL_API_KEY = os.getenv('AUTODL_API_KEY', 'autodl-tts-secret-key-2024')
-SPK_INFO_PATH = os.getenv('SPK_INFO_PATH', './spkinfo.pt')
+SPK_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'spk')
 MODEL_DIR = os.getenv('MODEL_DIR', 'pretrained_models/Fun-CosyVoice3-0.5B')
 
 # Import utilities
@@ -54,15 +54,12 @@ _cosyvoice_instance = None
 _spk_name = None
 
 
-def init_cosyvoice(spk_info_path=None):
-    """Initialize CosyVoice model and load speaker info (singleton)"""
+def init_cosyvoice(default_spk_name):
+    """Initialize CosyVoice model and load all speakers from spk/ directory (singleton)"""
     global _cosyvoice_instance, _spk_name
 
     if _cosyvoice_instance is not None:
         return _cosyvoice_instance, _spk_name
-
-    if spk_info_path is None:
-        spk_info_path = SPK_INFO_PATH
 
     print(f"Initializing CosyVoice model from {MODEL_DIR}...")
     _cosyvoice_instance = AutoModel(
@@ -72,13 +69,25 @@ def init_cosyvoice(spk_info_path=None):
         fp16=False
     )
 
-    # Load speaker info
-    print(f"Loading speaker info from {spk_info_path}...")
-    spk2info = torch.load(spk_info_path, map_location='cpu')
-    _spk_name = list(spk2info.keys())[0]
-    _cosyvoice_instance.frontend.spk2info[_spk_name] = spk2info[_spk_name]
-    print(f"Loaded speaker: {_spk_name}")
-    
+    # Load all .pt files from spk/ directory
+    spk_files = sorted(glob.glob(os.path.join(SPK_DIR, '*.pt')))
+    if not spk_files:
+        raise RuntimeError(f"No .pt files found in {SPK_DIR}")
+
+    for spk_path in spk_files:
+        spk_name = os.path.splitext(os.path.basename(spk_path))[0]
+        print(f"Loading speaker: {spk_name} from {spk_path}...")
+        spk2info = torch.load(spk_path, map_location='cpu')
+        info = list(spk2info.values())[0]
+        _cosyvoice_instance.frontend.spk2info[spk_name] = info
+
+    _spk_name = default_spk_name
+    if _spk_name not in _cosyvoice_instance.frontend.spk2info:
+        raise RuntimeError(f"Speaker '{_spk_name}' not found. Available: {list(_cosyvoice_instance.frontend.spk2info.keys())}")
+
+    print(f"Default speaker: {_spk_name}")
+    print(f"All speakers: {list(_cosyvoice_instance.frontend.spk2info.keys())}")
+
     return _cosyvoice_instance, _spk_name
 
 
@@ -94,7 +103,7 @@ def cosyvoice_tts(text: str, output_path: str) -> bool:
         True if successful, False otherwise
     """
     try:
-        cosyvoice, spk_name = init_cosyvoice()
+        cosyvoice, spk_name = _cosyvoice_instance, _spk_name
         text = smartread_text_normalize(text)
 
         # Generate speech using pre-loaded speaker info
@@ -369,18 +378,11 @@ def main():
     book_id = args.book_id
     voice_id = args.voice_id
 
-    print(f"Speaker info: {args.spk}, Language: {args.lang}, Voice ID: {voice_id}")
+    print(f"Speaker: {args.spk}, Language: {args.lang}, Voice ID: {voice_id}")
     print(f"Starting TTS processing for book: {book_id}")
 
-    # Resolve speaker name to file path
-    spk_path = os.path.join('spk', f'{args.spk}.pt')
-    if not os.path.exists(spk_path):
-        print(f"Error: Speaker file not found: {spk_path}")
-        print(f"Available speakers: {[os.path.splitext(f)[0] for f in os.listdir('spk') if f.endswith('.pt')]}")
-        sys.exit(1)
-
-    # Initialize CosyVoice model (one-time loading)
-    init_cosyvoice(spk_info_path=spk_path)
+    # Initialize CosyVoice model and load all speakers
+    init_cosyvoice(default_spk_name=args.spk)
 
     import time
     s3 = S3()
