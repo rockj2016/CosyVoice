@@ -3,7 +3,7 @@
 """
 TTS Book Processing Script
 
-Usage: python run.py --book_id <book_id> --spk <spk_file.pt> [--lang zh|en]
+Usage: python run.py --book_id <book_id> --spk <speaker_name> [--lang zh|en]
 
 从外部服务获取书本信息，生成 TTS 音频和字幕，并将结果上传回外部服务。
 """
@@ -354,7 +354,7 @@ def _version_matches_modes(version, allowed_modes):
 def main():
     parser = argparse.ArgumentParser(description='TTS Book Processing Script')
     parser.add_argument('--book_id', type=str, required=True, help='Book ID to process')
-    parser.add_argument('--spk', type=str, required=True, help='Path to speaker info .pt file')
+    parser.add_argument('--spk', type=str, required=True, help='Speaker name (e.g. cn_male_1), resolved to spk/<name>.pt')
     parser.add_argument('--lang', type=str, default='zh', choices=['zh', 'en'], help='Language for text splitting: zh (default) or en')
     parser.add_argument('--force', action='store_true', default=False, help='Force re-process completed chapters (silent update)')
     parser.add_argument('--modes', type=str, default=None, help='Comma-separated modes to process, e.g. "summarize_20,guide"')
@@ -372,8 +372,15 @@ def main():
     print(f"Speaker info: {args.spk}, Language: {args.lang}, Voice ID: {voice_id}")
     print(f"Starting TTS processing for book: {book_id}")
 
+    # Resolve speaker name to file path
+    spk_path = os.path.join('spk', f'{args.spk}.pt')
+    if not os.path.exists(spk_path):
+        print(f"Error: Speaker file not found: {spk_path}")
+        print(f"Available speakers: {[os.path.splitext(f)[0] for f in os.listdir('spk') if f.endswith('.pt')]}")
+        sys.exit(1)
+
     # Initialize CosyVoice model (one-time loading)
-    init_cosyvoice(spk_info_path=args.spk)
+    init_cosyvoice(spk_info_path=spk_path)
 
     import time
     s3 = S3()
