@@ -134,7 +134,7 @@ def fetch_book_content(book_id: str, force: bool = False) -> dict:
     Returns:
         Book content data dict
     """
-    url = f"{EXTERNAL_API_HOST}/autodl/book/{book_id}/content"
+    url = f"{EXTERNAL_API_HOST}/api/v1/autodl/book/{book_id}/content"
     if force:
         url += "?force=true"
     headers = {
@@ -164,7 +164,7 @@ def submit_chapter_audio(chapter_id: str, s3_key: str, audio_duration: int, capt
     Returns:
         True if successful, False otherwise
     """
-    url = f"{EXTERNAL_API_HOST}/autodl/chapter/audio"
+    url = f"{EXTERNAL_API_HOST}/api/v1/autodl/chapter/audio"
     headers = {
         "X-AutoDL-API-Key": AUTODL_API_KEY,
         "Content-Type": "application/json"
