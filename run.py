@@ -359,7 +359,12 @@ def main():
     parser.add_argument('--force', action='store_true', default=False, help='Force re-process completed chapters (silent update)')
     parser.add_argument('--modes', type=str, default=None, help='Comma-separated modes to process, e.g. "summarize_20,guide"')
     parser.add_argument('--voice_id', type=str, default=None, help='Voice UUID for multi-voice audio callback')
+    parser.add_argument('--host', type=str, default=None, help='Override EXTERNAL_API_HOST from .env')
     args = parser.parse_args()
+
+    global EXTERNAL_API_HOST
+    if args.host:
+        EXTERNAL_API_HOST = args.host
 
     book_id = args.book_id
     voice_id = args.voice_id
