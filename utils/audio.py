@@ -477,7 +477,7 @@ def merge_audio_and_generate_subtitles(audio_dir, crossfade_ms=10):
                 duration_dict[audio_file] = str(duration_with_pause)
                 total_duration += duration_with_pause
 
-                pause_type = "title(1s)" if is_title and i < len(files)-1 else ("normal(0.2s)" if i < len(files)-1 else "none")
+                pause_type = "title(1s)" if is_title and i < len(files)-1 else ("normal(0.1s)" if i < len(files)-1 else "none")
                 print(f"  Audio {audio_file}: {float(duration_with_pause):.3f}s (pause={pause_type})")
 
             except Exception as e:

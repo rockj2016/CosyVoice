@@ -211,7 +211,7 @@ def process_chapter(book_id: str, chapter_data: dict, version_id: str, lang: str
     print(f"{'='*60}")
     
     # Create audio directory
-    audio_dir = f"output/{book_id}/{version_id}/{chapter_id}"
+    audio_dir = f"/root/autodl-tmp/output/{book_id}/{version_id}/{chapter_id}"
     os.makedirs(audio_dir, exist_ok=True)
     
     text_index = {}
