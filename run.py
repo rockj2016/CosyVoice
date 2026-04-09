@@ -54,7 +54,7 @@ _cosyvoice_instance = None
 _spk_name = None
 
 
-def init_cosyvoice(default_spk_name):
+def init_cosyvoice(default_spk_name, lang='zh'):
     """Initialize CosyVoice model and load all speakers from spk/ directory (singleton)"""
     global _cosyvoice_instance, _spk_name
 
@@ -83,7 +83,9 @@ def init_cosyvoice(default_spk_name):
 
     _spk_name = default_spk_name
     if _spk_name not in _cosyvoice_instance.frontend.spk2info:
-        raise RuntimeError(f"Speaker '{_spk_name}' not found. Available: {list(_cosyvoice_instance.frontend.spk2info.keys())}")
+        default = 'en_male_1' if lang == 'en' else 'cn_male_1'
+        print(f"Warning: Speaker '{_spk_name}' not found. Falling back to '{default}'")
+        _spk_name = default
 
     print(f"Default speaker: {_spk_name}")
     print(f"All speakers: {list(_cosyvoice_instance.frontend.spk2info.keys())}")
@@ -382,7 +384,7 @@ def main():
     print(f"Starting TTS processing for book: {book_id}")
 
     # Initialize CosyVoice model and load all speakers
-    init_cosyvoice(default_spk_name=args.spk)
+    init_cosyvoice(default_spk_name=args.spk, lang=args.lang)
 
     import time
     s3 = S3()
