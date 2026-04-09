@@ -66,6 +66,8 @@ ENV MODEL_DIR=/models/Fun-CosyVoice3-0.5B
 ENV DEFAULT_SPK=cn_male_1
 ENV API_HOST=0.0.0.0
 ENV API_PORT=6006
+# Number of flow+hift model replicas for concurrent inference (override with -e GPU_CONCURRENT=N)
+ENV GPU_CONCURRENT=2
 
 EXPOSE 6006
 

@@ -38,6 +38,7 @@ AUTODL_API_KEY = os.getenv('AUTODL_API_KEY', 'autodl-tts-secret-key-2024')
 SPK_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'spk')
 DEFAULT_SPK = args.spk
 MODEL_DIR = os.getenv('MODEL_DIR', 'pretrained_models/Fun-CosyVoice3-0.5B')
+GPU_CONCURRENT = int(os.getenv('GPU_CONCURRENT', '1'))
 HOST = args.host or os.getenv('API_HOST', '0.0.0.0')
 PORT = args.port or int(os.getenv('API_PORT', 6006))
 
@@ -74,7 +75,8 @@ def init_cosyvoice():
         model_dir=MODEL_DIR,
         load_trt=True,
         load_vllm=True,
-        fp16=False
+        fp16=False,
+        gpu_concurrent=GPU_CONCURRENT,
     )
 
     # Load all .pt files from spk/ directory
