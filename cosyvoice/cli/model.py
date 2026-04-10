@@ -69,8 +69,31 @@ class CosyVoiceModel:
 
     def init_model_pool(self, gpu_concurrent):
         """Create additional flow+hift replicas. Must be called after load/load_trt."""
+        trt_wrapper = None
+        if isinstance(self.flow.decoder.estimator, TrtContextWrapper):
+            trt_wrapper = self.flow.decoder.estimator
+            # Rebuild TRT context pool with expanded capacity
+            new_pool = queue.Queue(maxsize=gpu_concurrent)
+            while not trt_wrapper.trt_context_pool.empty():
+                new_pool.put(trt_wrapper.trt_context_pool.get_nowait())
+            for _ in range(gpu_concurrent - 1):
+                ctx = trt_wrapper.trt_engine.create_execution_context()
+                stream = torch.cuda.stream(torch.cuda.Stream(self.device))
+                assert ctx is not None, 'failed to create trt context for model pool'
+                new_pool.put([ctx, stream])
+            trt_wrapper.trt_context_pool = new_pool
+
         for _ in range(gpu_concurrent - 1):
-            self.model_pool.put((copy.deepcopy(self.flow), copy.deepcopy(self.hift)))
+            if trt_wrapper is not None:
+                # Deepcopy flow without TRT (TRT objects can't be pickled),
+                # then share the TRT context pool across all copies
+                self.flow.decoder.estimator = None
+                flow_copy = copy.deepcopy(self.flow)
+                self.flow.decoder.estimator = trt_wrapper
+                flow_copy.decoder.estimator = trt_wrapper
+            else:
+                flow_copy = copy.deepcopy(self.flow)
+            self.model_pool.put((flow_copy, copy.deepcopy(self.hift)))
 
     def load(self, llm_model, flow_model, hift_model):
         self.llm.load_state_dict(torch.load(llm_model, map_location=self.device, weights_only=True), strict=True)
