@@ -16,8 +16,10 @@ from fastapi import FastAPI, HTTPException, Header, Depends
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from typing import Generator, Optional
+import asyncio
 import uuid
 from dotenv import load_dotenv
+from starlette.background import BackgroundTask
 from utils.normalize import smartread_text_normalize
 
 # Add third_party path
@@ -110,6 +112,20 @@ async def verify_api_key(x_autodl_api_key: str = Header(...)):
 async def startup_event():
     init_cosyvoice()
 
+def _tts_full_generate(cosyvoice, text: str, spk_name: str, output_path: str) -> bool:
+    """Run full TTS generation synchronously (called via asyncio.to_thread)."""
+    for result in cosyvoice.inference_zero_shot(
+        text,
+        'You are a helpful assistant.<|endofprompt|>',
+        '',
+        zero_shot_spk_id=spk_name,
+        stream=False
+    ):
+        torchaudio.save(output_path, result['tts_speech'], cosyvoice.sample_rate)
+        return True
+    return False
+
+
 def _tts_stream_generator(cosyvoice, text: str, spk_name: str) -> Generator[bytes, None, None]:
     """Yield raw PCM float32 bytes as each audio chunk is generated."""
     for result in cosyvoice.inference_zero_shot(
@@ -156,26 +172,21 @@ async def generate_tts(request: TTSRequest, api_key: str = Depends(verify_api_ke
             },
         )
 
-    # Non-streaming: generate full audio and return as WAV file
+    # Non-streaming: offload to thread to avoid blocking the event loop
     output_filename = f"tts_output_{uuid.uuid4()}.wav"
     output_path = os.path.join("/tmp", output_filename)
 
-    generated = False
-    for result in cosyvoice.inference_zero_shot(
-        text,
-        'You are a helpful assistant.<|endofprompt|>',
-        '',
-        zero_shot_spk_id=spk_name,
-        stream=False
-    ):
-        torchaudio.save(output_path, result['tts_speech'], cosyvoice.sample_rate)
-        generated = True
-        break
+    generated = await asyncio.to_thread(
+        _tts_full_generate, cosyvoice, text, spk_name, output_path
+    )
 
     if not generated:
         raise HTTPException(status_code=500, detail="Failed to generate audio")
 
-    return FileResponse(output_path, media_type="audio/wav", filename=output_filename)
+    return FileResponse(
+        output_path, media_type="audio/wav", filename=output_filename,
+        background=BackgroundTask(os.unlink, output_path),
+    )
 
 if __name__ == '__main__':
     uvicorn.run(app, host=HOST, port=PORT)
